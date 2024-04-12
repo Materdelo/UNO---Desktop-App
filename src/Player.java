@@ -2,14 +2,12 @@ import java.util.ArrayList;
 
 public class Player {
     private String name;
-    private ArrayList<Integer> cards;
-    private int numberOfCards;
+    private ArrayList<Card> cards;
     private ArrayList<RotatedRectangle> playerCards = new ArrayList<>();
 
-    public Player(String name, ArrayList<Integer> cards, int numberOfCards) {
+    public Player(String name, ArrayList<Card> cards) {
         this.name = name;
         this.cards = cards;
-        this.numberOfCards = numberOfCards;
     }
 
     public ArrayList<RotatedRectangle> getPlayerCards() {
@@ -24,15 +22,7 @@ public class Player {
         return name;
     }
 
-    public void setNumberOfCards(int numberOfCards) {
-        this.numberOfCards = numberOfCards;
-    }
-
-    public ArrayList<Integer> getCards() {
+    public ArrayList<Card> getCards() {
         return cards;
-    }
-
-    public int getNumberOfCards() {
-        return numberOfCards;
     }
 }
