@@ -1,5 +1,5 @@
-import Enums.Symbol;
 import Enums.CardColors;
+import Enums.Symbol;
 
 public class Card {
     private CardColors color;

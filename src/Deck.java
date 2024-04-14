@@ -7,6 +7,10 @@ import java.util.Stack;
 public class Deck {
     private Stack<Card> deck = new Stack<>();
 
+    public Stack<Card> getDeck() {
+        return deck;
+    }
+
     public Deck() {
         for (CardColors color : CardColors.values()) {
             if(color == CardColors.BLACK){

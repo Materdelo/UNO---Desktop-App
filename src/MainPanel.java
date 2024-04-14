@@ -1,3 +1,6 @@
+import Enums.CardColors;
+import Enums.Symbol;
+
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
@@ -8,17 +11,18 @@ import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 
 public class MainPanel extends JPanel {
-    private final int CARD_WIDTH = 100;
-    private final int CARD_HEIGHT = 70;
-    private final int numberOfPlayers = 7;
-    private final int RADIUS = 360/numberOfPlayers;
+    private final int CARD_WIDTH = 70;
+    private final int CARD_HEIGHT = 100;
+    private final int numberOfPlayers = 4;
     private double rotationAngle = (double) 360 / numberOfPlayers;
     private int semiCircleRotationAngle = 0;
     private ArrayList<RotatedRectangle> mainStack = new ArrayList<>();
+    private ArrayList<RotatedRectangle> deckStack = new ArrayList<>();
     private boolean animating = false;
     private int currentPlayer = 0;
     private ArrayList<Player> players = new ArrayList<>();
     private Image image, bgcImage;
+    private boolean reverse = false;
     public MainPanel() {
         Deck deck = new Deck();
         try {
@@ -34,38 +38,137 @@ public class MainPanel extends JPanel {
             }
             players.add(new Player(STR."Player \{i + 1}", cards));
         }
+        for (Card card: deck.getDeck()){
+            RotatedRectangle rotatedRectangle = new RotatedRectangle(new Rectangle(getWidth() / 2 - CARD_WIDTH / 2 + 130, getHeight() / 2 - CARD_HEIGHT / 2, CARD_WIDTH, CARD_HEIGHT), card);
+            deckStack.add(rotatedRectangle);
+        }
+        mainStack.add(new RotatedRectangle(new Rectangle(0, 0, CARD_WIDTH + 30, CARD_HEIGHT + 30), deck.drawCard()));
 
         addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent evt) {
-            for (int i = players.get(currentPlayer).getPlayerCards().size() - 1; i >= 0 ; i--) {
-                if (players.get(currentPlayer).getPlayerCards().get(i).contains(evt.getPoint()) && !animating) {
-                    animating = true;
-                    Timer timer = new Timer(10, new ActionListener() {
-                        @Override
-                        public void actionPerformed(ActionEvent e) {
-                            rotationAngle++;
-                            semiCircleRotationAngle++;
-                            repaint();
-                            if (rotationAngle % (360.0 / numberOfPlayers) < 1) {
-                                ((Timer) e.getSource()).stop();
-                                animating = false;
+                for (int i = players.get(currentPlayer).getPlayerCards().size() - 1; i >= 0 ; i--) {
+//                    System.out.println(i + " " + players.get(currentPlayer).getPlayerCards().size());
+                    RotatedRectangle card = players.get(currentPlayer).getPlayerCards().get(i);
+                    if (card.getRectangle().contains(evt.getPoint()) && !animating) {
+                        Card topCard = mainStack.getLast().getCard();
+                        Card playerCard = card.getCard();
+                        if (canPlayCard(playerCard, topCard)) {
+//                            if (playerCard.getColor() == CardColors.BLACK) {
+//                                  WYbieranie koloru                        players.get(currentPlayer).getPlayerCards().get(i).getCard().setColor());
+//                            }
+                            if (playerCard.getSymbol() == Symbol.SKIP) {
+                                mainStack.add(card);
+                                players.get(currentPlayer).getCards().remove(i);
+                                animation();
+                                animation();
+                                changePlayer();
+                                changePlayer();
+                                break;
+                            } else if (playerCard.getSymbol() == Symbol.REVERSE) {
+                                reverse = !reverse;
+                                animation();
+                                mainStack.add(card);
+                                System.out.println(STR."Card \{card.getCard().getSymbol()} \{card.getCard().getColor()} played");
+                                players.get(currentPlayer).getCards().remove(i);
+                                changePlayer();
+                                break;
+                            } else {
+                                animation();
+                                mainStack.add(card);
+                                System.out.println(STR."Card \{card.getCard().getSymbol()} \{card.getCard().getColor()} played");
+                                players.get(currentPlayer).getCards().remove(i);
+                                changePlayer();
+                                break;
                             }
                         }
-                    });
-                    timer.start();
-                    RotatedRectangle card = players.get(currentPlayer).getPlayerCards().get(i);
-                    mainStack.add(card);
-                    System.out.println(STR."Card \{card.getCard().getSymbol()} \{card.getCard().getColor()} played");
-                    players.get(currentPlayer).getCards().remove(i);
-                    currentPlayer = (currentPlayer + 1) % numberOfPlayers;
-                    break;
+                    }
+                    repaint();
                 }
-                repaint();
-            }
+                for (int i = 0; i < deckStack.size(); i++) {
+                    RotatedRectangle card = deckStack.get(i);
+                    card.getRectangle().setLocation(getWidth() / 2 - CARD_WIDTH / 2 + 130, getHeight() / 2 - CARD_HEIGHT / 2);
+                    if (card.getRectangle().contains(evt.getPoint()) && !animating){
+                        players.get(currentPlayer).getCards().add(card.getCard());
+                        deckStack.remove(i);
+                        animation();
+                        changePlayer();
+                        break;
+                    }
+                }
+                if (isEndGame()){
+                    System.out.println(STR."End game");
+                    System.exit(0);
+                }
             }
         });
     }
+
+    private void changePlayer(){
+        if (reverse){
+            currentPlayer = (currentPlayer - 1 + numberOfPlayers) % numberOfPlayers;
+        } else {
+            currentPlayer = (currentPlayer + 1) % numberOfPlayers;
+        }
+    }
+
+    private void animation (){
+        animating = true;
+        Timer timer = new Timer(10, new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (reverse){
+                    rotationAngle--;
+                    semiCircleRotationAngle--;
+                    if (Math.abs(rotationAngle) % (360.0 / numberOfPlayers) < 1) {
+                        ((Timer) e.getSource()).stop();
+                        animating = false;
+                    }
+                } else {
+                    rotationAngle++;
+                    semiCircleRotationAngle++;
+                    if (Math.abs(rotationAngle) % (360.0 / numberOfPlayers) < 1) {
+                        ((Timer) e.getSource()).stop();
+                        animating = false;
+                    }
+                }
+                repaint();
+            }
+        });
+        timer.start();
+    }
+
+    private boolean isEndGame(){
+        for (Player player: players){
+            if (player.getCards().isEmpty()){
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean canPlayCard(Card playerCard, Card topCard){
+        return isSameColor(playerCard, topCard) || isSameSymbol(playerCard, topCard ) || isBlackCard(playerCard)/* || isDrawTwoCard(playerCard, topCard) || isDrawFourCard(playerCard, topCard)*/;
+    }
+
+    private boolean isSameColor(Card playerCard, Card topCard){
+        return playerCard.getColor() == topCard.getColor();
+    }
+
+    private boolean isSameSymbol(Card playerCard, Card topCard){
+        return playerCard.getSymbol() == topCard.getSymbol();
+    }
+
+    private boolean isBlackCard(Card playerCard){
+        return playerCard.getColor() == CardColors.BLACK;
+    }
+
+//    private boolean isDrawTwoCard(Card playerCard, Card topCard){
+//        return topCard.getSymbol() == Symbol.DRAW_TWO && (playerCard.getSymbol() == Symbol.DRAW_TWO || playerCard.getSymbol() == Symbol.WILD_DRAW_FOUR);
+//    }
+//    private boolean isDrawFourCard(Card playerCard, Card topCard){
+//        return topCard.getSymbol() == Symbol.WILD_DRAW_FOUR && playerCard.getSymbol() == Symbol.WILD_DRAW_FOUR;
+//    }
 
     @Override
     protected void paintComponent(Graphics g) {
@@ -90,6 +193,9 @@ public class MainPanel extends JPanel {
             card.getRectangle().setLocation(centerX - card.getRectangle().width / 2, centerY - card.getRectangle().height / 2);
             card.draw(graphics2D, card);
         }
+        for (RotatedRectangle _ : deckStack){
+            graphics2D.drawImage(image, centerX - CARD_WIDTH / 2 + 130, centerY - CARD_HEIGHT / 2, CARD_WIDTH, CARD_HEIGHT, null);
+        }
 
         players.get(currentPlayer).getPlayerCards().clear();
         for (int i = 0; i < numberOfPlayers; i++) {
@@ -102,6 +208,7 @@ public class MainPanel extends JPanel {
             int semiCircleCenterY = (int) (centerY + getHeight() / 2 * Math.sin(playerAngle));
 
             for (int j = 0; j < players.get(i).getCards().size(); j++) {
+                int RADIUS = 360 / numberOfPlayers;
                 double cardAngle = Math.toRadians(semiCircleRotationAngle + j * ((double) 90 / (players.get(i).getCards().size() - 1)) - (RADIUS * i) + (0.625 * numberOfPlayers) * RADIUS);
                 if (players.get(i).getCards().size() == 1) {
                     cardAngle = Math.toRadians(semiCircleRotationAngle - (RADIUS * i)) - Math.toRadians(90);
@@ -117,7 +224,7 @@ public class MainPanel extends JPanel {
                     graphics2D.drawImage(image, x, y, CARD_WIDTH, CARD_HEIGHT, null);
                 } else {
                     Rectangle card = new Rectangle(x, y, CARD_WIDTH + 30, CARD_HEIGHT + 30);
-                    RotatedRectangle rotatedRectangle = new RotatedRectangle(card, Math.toDegrees(playerAngle), new Card(players.get(i).getCards().get(j).getColor(), players.get(i).getCards().get(j).getSymbol()));
+                    RotatedRectangle rotatedRectangle = new RotatedRectangle(card, new Card(players.get(i).getCards().get(j).getColor(), players.get(i).getCards().get(j).getSymbol()));
                     currentPlayerCards.add(rotatedRectangle);
                     players.get(i).addPlayerCard(rotatedRectangle);
                 }
