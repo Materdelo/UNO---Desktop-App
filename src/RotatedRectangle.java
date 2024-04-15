@@ -1,6 +1,5 @@
 import java.awt.*;
 import java.awt.geom.Ellipse2D;
-import java.util.Objects;
 
 public class RotatedRectangle {
     private Rectangle rectangle;
