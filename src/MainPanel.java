@@ -4,8 +4,6 @@ import Enums.Symbol;
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
@@ -26,6 +24,8 @@ public class MainPanel extends JPanel {
     private Image image, bgcImage;
     private boolean reverse = false;
     private boolean mustPlaySkip = false;
+    private boolean mustPlayPlus = false;
+    private int cardToDraw = 0;
     private int skipCounter = 1;
     public MainPanel() {
         Deck deck = new Deck();
@@ -58,18 +58,10 @@ public class MainPanel extends JPanel {
                         Card topCard = mainStack.getLast().getCard();
                         Card playerCard = card.getCard();
                         if (canPlayCard(playerCard, topCard)) {
-//                            if (playerCard.getColor() == CardColors.BLACK) {
-//                                  WYbieranie koloru                        players.get(currentPlayer).getPlayerCards().get(i).getCard().setColor());
-//                            }
-                            if (playerCard.getSymbol() == Symbol.SKIP) {
-                                mainStack.add(card);
-                                players.get(currentPlayer).getCards().remove(i);
-                                animation();
-                                changePlayer();
-                                skipTurns();
+                            if (playerCard.getSymbol() == Symbol.SKIP && !mustPlayPlus){
+                                playedCard(card, i);
                                 mustPlaySkip = true;
                                 CountDownLatch latch = new CountDownLatch(1);
-                                System.out.println(skipCounter);
                                 SkipDialog skipDialog = new SkipDialog((JFrame) SwingUtilities.getWindowAncestor(MainPanel.this), players, currentPlayer, latch, skipCounter);
                                 try {
                                     latch.await();
@@ -81,44 +73,49 @@ public class MainPanel extends JPanel {
                                     addMouseListener(new MouseAdapter() {
                                         @Override
                                         public void mouseClicked(MouseEvent evt) {
-                                            for (int i = players.get(currentPlayer).getPlayerCards().size() - 1; i >= 0; i--) {
-                                                RotatedRectangle card = players.get(currentPlayer).getPlayerCards().get(i);
-                                                if (card.getRectangle().contains(evt.getPoint()) && !animating) {
-                                                    Card playerCard = card.getCard();
-                                                    if (playerCard.getSymbol() == Symbol.SKIP) {
-                                                        mainStack.add(card);
-                                                        players.get(currentPlayer).getCards().remove(i);
-                                                        animation();
-                                                        changePlayer();
-                                                        skipTurns();
-                                                        break;
-                                                    }
+                                        for (int i = players.get(currentPlayer).getPlayerCards().size() - 1; i >= 0; i--) {
+                                            RotatedRectangle card = players.get(currentPlayer).getPlayerCards().get(i);
+                                            if (card.getRectangle().contains(evt.getPoint()) && !animating) {
+                                                Card playerCard = card.getCard();
+                                                if (playerCard.getSymbol() == Symbol.SKIP) {
+                                                    mainStack.add(card);
+                                                    players.get(currentPlayer).getCards().remove(i);
+                                                    animation();
+                                                    changePlayer();
+                                                    skipTurns();
+                                                    break;
                                                 }
                                             }
                                         }
+                                        }
                                     });
                                 } else {
-                                    skipTurns.set(currentPlayer, skipTurns.get(currentPlayer) + skipCounter + 1);
+                                    skipTurns.set(currentPlayer, skipTurns.get(currentPlayer) + skipCounter);
                                     skipCounter = 1;
+                                    mustPlayPlus = false;
                                     mustPlaySkip = false;
                                 }
                                 skipTurns();
                                 break;
-                            } else if(!mustPlaySkip) {
+                            } else if (playerCard.getSymbol() == Symbol.DRAW_TWO && !mustPlaySkip){
+                                cardToDraw += 2;
+                                mustPlayPlus = true;
+                                playedCard(card, i);
+                                break;
+                            } else if (playerCard.getSymbol() == Symbol.WILD_DRAW_FOUR && !mustPlaySkip){
+                                playedBlackCard(playerCard, i);
+                                mustPlayPlus = true;
+                                cardToDraw += 4;
+                                playedCard(card, i);
+                                break;
+                            } else if(!mustPlaySkip && !mustPlayPlus){
+                                playedBlackCard(playerCard, i);
                                 if (playerCard.getSymbol() == Symbol.REVERSE) {
                                     reverse = !reverse;
-                                    animation();
-                                    mainStack.add(card);
-                                    System.out.println(STR."Card \{card.getCard().getSymbol()} \{card.getCard().getColor()} played");
-                                } else {
-                                    animation();
-                                    mainStack.add(card);
-                                    System.out.println(STR."Card \{card.getCard().getSymbol()} \{card.getCard().getColor()} played");
                                 }
-                                players.get(currentPlayer).getCards().remove(i);
-                                changePlayer();
-                                skipTurns();
+                                playedCard(card, i);
                                 mustPlaySkip = false;
+                                mustPlayPlus = false;
                                 break;
                             }
                         }
@@ -130,6 +127,18 @@ public class MainPanel extends JPanel {
                         RotatedRectangle card = deckStack.get(i);
                         card.getRectangle().setLocation(getWidth() / 2 - CARD_WIDTH / 2 + 130, getHeight() / 2 - CARD_HEIGHT / 2);
                         if (card.getRectangle().contains(evt.getPoint()) && !animating && !mustPlaySkip) {
+                            if (mustPlayPlus) {
+                                for (int j = 0; j < cardToDraw - 1; j++) {
+//                                    if (j == 0 && (deck.peekCard().getSymbol() == Symbol.WILD_DRAW_FOUR || deck.peekCard().getSymbol() == Symbol.DRAW_TWO)){
+//                                        players.get(currentPlayer).getCards().add(deck.drawCard());
+//                                        playedCard(card, i);
+//                                        break;
+//                                    }
+                                    players.get(currentPlayer).getCards().add(deck.drawCard());
+                                }
+                                cardToDraw = 0;
+                                mustPlayPlus = false;
+                            }
                             players.get(currentPlayer).getCards().add(card.getCard());
                             deckStack.remove(i);
                             animation();
@@ -148,6 +157,22 @@ public class MainPanel extends JPanel {
         });
     }
 
+    private void playedCard(RotatedRectangle card, int i){
+        mainStack.add(card);
+        players.get(currentPlayer).getCards().remove(i);
+        changePlayer();
+        animation();
+        skipTurns();
+    }
+
+    private void playedBlackCard(Card playerCard, int i){
+        if (playerCard.getColor() == CardColors.BLACK) {
+            ColorDialog colorDialog = new ColorDialog((JFrame) SwingUtilities.getWindowAncestor(MainPanel.this));
+            playerCard.setColor(colorDialog.getColor());
+            players.get(currentPlayer).getPlayerCards().get(i).getCard().setColor(colorDialog.getColor());
+        }
+    }
+
     private void changePlayer(){
         if (reverse) {
             currentPlayer = (currentPlayer - 1 + numberOfPlayers) % numberOfPlayers;
@@ -163,6 +188,7 @@ public class MainPanel extends JPanel {
             changePlayer();
         }
     }
+
     private void animation (){
         animating = true;
         Timer timer = new Timer(10, e -> {
@@ -192,7 +218,7 @@ public class MainPanel extends JPanel {
     }
 
     private boolean canPlayCard(Card playerCard, Card topCard){
-        return isSameColor(playerCard, topCard) || isSameSymbol(playerCard, topCard ) || isBlackCard(playerCard)/* || isDrawTwoCard(playerCard, topCard) || isDrawFourCard(playerCard, topCard)*/;
+        return isSameColor(playerCard, topCard) || isSameSymbol(playerCard, topCard ) || isBlackCard(playerCard) || isDrawTwoCard(playerCard, topCard) || isDrawFourCard(playerCard, topCard);
     }
 
     private boolean isSameColor(Card playerCard, Card topCard){
@@ -207,12 +233,12 @@ public class MainPanel extends JPanel {
         return playerCard.getColor() == CardColors.BLACK;
     }
 
-//    private boolean isDrawTwoCard(Card playerCard, Card topCard){
-//        return topCard.getSymbol() == Symbol.DRAW_TWO && (playerCard.getSymbol() == Symbol.DRAW_TWO || playerCard.getSymbol() == Symbol.WILD_DRAW_FOUR);
-//    }
-//    private boolean isDrawFourCard(Card playerCard, Card topCard){
-//        return topCard.getSymbol() == Symbol.WILD_DRAW_FOUR && playerCard.getSymbol() == Symbol.WILD_DRAW_FOUR;
-//    }
+    private boolean isDrawTwoCard(Card playerCard, Card topCard){
+        return topCard.getSymbol() == Symbol.DRAW_TWO && (playerCard.getSymbol() == Symbol.DRAW_TWO || playerCard.getSymbol() == Symbol.WILD_DRAW_FOUR) && isSameColor(playerCard, topCard);
+    }
+    private boolean isDrawFourCard(Card playerCard, Card topCard){
+        return topCard.getSymbol() == Symbol.WILD_DRAW_FOUR && (playerCard.getSymbol() == Symbol.WILD_DRAW_FOUR || playerCard.getSymbol() == Symbol.DRAW_TWO) && isSameColor(playerCard, topCard);
+    }
 
     @Override
     protected void paintComponent(Graphics g) {
@@ -239,6 +265,9 @@ public class MainPanel extends JPanel {
         }
         for (RotatedRectangle _ : deckStack){
             graphics2D.drawImage(image, centerX - CARD_WIDTH / 2 + 130, centerY - CARD_HEIGHT / 2, CARD_WIDTH, CARD_HEIGHT, null);
+            if(cardToDraw > 0) {
+                graphics2D.drawString(STR."+\{cardToDraw}", centerX - CARD_WIDTH / 2 + 150, centerY - CARD_HEIGHT/2 - 20);
+            }
         }
 
         players.get(currentPlayer).getPlayerCards().clear();

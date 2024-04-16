@@ -10,6 +10,10 @@ public class Card {
         this.symbol = symbol;
     }
 
+    public void setColor(CardColors color) {
+        this.color = color;
+    }
+
     public CardColors getColor() {
         return color;
     }
