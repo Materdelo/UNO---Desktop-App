@@ -49,11 +49,9 @@ public class SkipDialog extends JDialog {
         return skip;
     }
 
-
     private boolean canPlayCard(ArrayList<Player> players, int currentPlayer) {
         for (Card card: players.get(currentPlayer).getCards()){
             if (card.getSymbol() == Symbol.SKIP){
-                System.out.println(STR."Can play card: \{card.getSymbol()}");
                 return true;
             }
         }

@@ -58,57 +58,21 @@ public class MainPanel extends JPanel {
                         Card topCard = mainStack.getLast().getCard();
                         Card playerCard = card.getCard();
                         if (canPlayCard(playerCard, topCard)) {
-                            if (playerCard.getSymbol() == Symbol.SKIP && !mustPlayPlus){
-                                playedCard(card, i);
-                                mustPlaySkip = true;
-                                CountDownLatch latch = new CountDownLatch(1);
-                                SkipDialog skipDialog = new SkipDialog((JFrame) SwingUtilities.getWindowAncestor(MainPanel.this), players, currentPlayer, latch, skipCounter);
-                                try {
-                                    latch.await();
-                                } catch (InterruptedException e) {
-                                    e.printStackTrace();
-                                }
-                                if (skipDialog.isSkip()){
-                                    skipCounter++;
-                                    addMouseListener(new MouseAdapter() {
-                                        @Override
-                                        public void mouseClicked(MouseEvent evt) {
-                                        for (int i = players.get(currentPlayer).getPlayerCards().size() - 1; i >= 0; i--) {
-                                            RotatedRectangle card = players.get(currentPlayer).getPlayerCards().get(i);
-                                            if (card.getRectangle().contains(evt.getPoint()) && !animating) {
-                                                Card playerCard = card.getCard();
-                                                if (playerCard.getSymbol() == Symbol.SKIP) {
-                                                    mainStack.add(card);
-                                                    players.get(currentPlayer).getCards().remove(i);
-                                                    animation();
-                                                    changePlayer();
-                                                    skipTurns();
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                        }
-                                    });
-                                } else {
-                                    skipTurns.set(currentPlayer, skipTurns.get(currentPlayer) + skipCounter);
-                                    skipCounter = 1;
-                                    mustPlayPlus = false;
-                                    mustPlaySkip = false;
-                                }
-                                skipTurns();
+                            if (playerCard.getSymbol() == Symbol.SKIP && !mustPlayPlus && !animating) {
+                                skipPlayedCard(card, i);
                                 break;
-                            } else if (playerCard.getSymbol() == Symbol.DRAW_TWO && !mustPlaySkip){
+                            } else if (playerCard.getSymbol() == Symbol.DRAW_TWO && !mustPlaySkip) {
                                 cardToDraw += 2;
                                 mustPlayPlus = true;
                                 playedCard(card, i);
                                 break;
-                            } else if (playerCard.getSymbol() == Symbol.WILD_DRAW_FOUR && !mustPlaySkip){
+                            } else if (playerCard.getSymbol() == Symbol.WILD_DRAW_FOUR && !mustPlaySkip) {
                                 playedBlackCard(playerCard, i);
                                 mustPlayPlus = true;
                                 cardToDraw += 4;
                                 playedCard(card, i);
                                 break;
-                            } else if(!mustPlaySkip && !mustPlayPlus){
+                            } else if (!mustPlaySkip && !mustPlayPlus) {
                                 playedBlackCard(playerCard, i);
                                 if (playerCard.getSymbol() == Symbol.REVERSE) {
                                     reverse = !reverse;
@@ -127,29 +91,64 @@ public class MainPanel extends JPanel {
                         RotatedRectangle card = deckStack.get(i);
                         card.getRectangle().setLocation(getWidth() / 2 - CARD_WIDTH / 2 + 130, getHeight() / 2 - CARD_HEIGHT / 2);
                         if (card.getRectangle().contains(evt.getPoint()) && !animating && !mustPlaySkip) {
-                            if (mustPlayPlus) {
-                                for (int j = 0; j < cardToDraw - 1; j++) {
-//                                    if (j == 0 && (deck.peekCard().getSymbol() == Symbol.WILD_DRAW_FOUR || deck.peekCard().getSymbol() == Symbol.DRAW_TWO)){
-//                                        players.get(currentPlayer).getCards().add(deck.drawCard());
-//                                        playedCard(card, i);
-//                                        break;
-//                                    }
-                                    players.get(currentPlayer).getCards().add(deck.drawCard());
-                                }
-                                cardToDraw = 0;
-                                mustPlayPlus = false;
-                            }
-                            players.get(currentPlayer).getCards().add(card.getCard());
                             deckStack.remove(i);
-                            animation();
-                            changePlayer();
-                            skipTurns();
-                            mustPlaySkip = false;
-                            break;
+                            DrawnCardDialog drawCardDialog = new DrawnCardDialog((JFrame) SwingUtilities.getWindowAncestor(MainPanel.this), card, mainStack.getLast(), mustPlayPlus);
+                            if (drawCardDialog.isPlay()) {
+                                card.getRectangle().setBounds(new Rectangle(0, 0, CARD_WIDTH + 30, CARD_HEIGHT + 30));
+                                if (card.getCard().getSymbol() == Symbol.SKIP && !animating) {
+                                    skipPlayedCard(card, i);
+                                    break;
+                                } else if (card.getCard().getSymbol() == Symbol.DRAW_TWO) {
+                                    if (mustPlayPlus) {
+                                        cardToDraw += 1;
+                                    } else {
+                                        cardToDraw += 2;
+                                        mustPlayPlus = true;
+                                    }
+                                    playedCard(card, i);
+                                    break;
+                                } else if (card.getCard().getColor() == CardColors.BLACK) {
+                                    ColorDialog colorDialog = new ColorDialog((JFrame) SwingUtilities.getWindowAncestor(MainPanel.this));
+                                    card.getCard().setColor(colorDialog.getColor());
+                                    if (card.getCard().getSymbol() == Symbol.WILD_DRAW_FOUR) {
+                                        if (mustPlayPlus) {
+                                            cardToDraw += 3;
+                                        } else {
+                                            cardToDraw += 4;
+                                            mustPlayPlus = true;
+                                        }
+                                    }
+                                    playedCard(card, i);
+                                    break;
+                                } else if (card.getCard().getSymbol() == Symbol.REVERSE) {
+                                    reverse = !reverse;
+                                    playedCard(card, i);
+                                    break;
+                                } else {
+                                    playedCard(card, i);
+                                    break;
+                                }
+                            } else {
+                                if (mustPlayPlus) {
+                                    players.get(currentPlayer).getCards().add(card.getCard());
+                                    for (int j = 0; j < cardToDraw - 1; j++) {
+                                        players.get(currentPlayer).getCards().add(deckStack.getFirst().getCard());
+                                        deckStack.removeFirst();
+                                    }
+                                    cardToDraw = 0;
+                                    mustPlayPlus = false;
+                                } else {
+                                    players.get(currentPlayer).getCards().add(card.getCard());
+                                }
+                                animation();
+                                changePlayer();
+                                skipTurns();
+                                mustPlaySkip = false;
+                            }
                         }
                     }
                 }
-                if (isEndGame()){
+                if (isEndGame()) {
                     System.out.println("End game");
                     System.exit(0);
                 }
@@ -162,6 +161,35 @@ public class MainPanel extends JPanel {
         players.get(currentPlayer).getCards().remove(i);
         changePlayer();
         animation();
+        skipTurns();
+    }
+
+    private void skipPlayedCard(RotatedRectangle card, int i){
+        playedCard(card, i);
+        mustPlaySkip = true;
+        SkipDialog skipDialog = new SkipDialog((JFrame) SwingUtilities.getWindowAncestor(MainPanel.this), players, currentPlayer, new CountDownLatch(1), skipCounter);
+        if (skipDialog.isSkip()){
+            skipCounter++;
+            addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent evt) {
+                    for (int i = players.get(currentPlayer).getPlayerCards().size() - 1; i >= 0; i--) {
+                        RotatedRectangle card = players.get(currentPlayer).getPlayerCards().get(i);
+                        if (card.getRectangle().contains(evt.getPoint()) && !animating) {
+                            Card playerCard = card.getCard();
+                            if (playerCard.getSymbol() == Symbol.SKIP) {
+                                break;
+                            }
+                        }
+                    }
+                }
+            });
+        } else {
+            skipTurns.set(currentPlayer, skipTurns.get(currentPlayer) + skipCounter);
+            skipCounter = 1;
+            mustPlayPlus = false;
+            mustPlaySkip = false;
+        }
         skipTurns();
     }
 
@@ -234,10 +262,10 @@ public class MainPanel extends JPanel {
     }
 
     private boolean isDrawTwoCard(Card playerCard, Card topCard){
-        return topCard.getSymbol() == Symbol.DRAW_TWO && (playerCard.getSymbol() == Symbol.DRAW_TWO || playerCard.getSymbol() == Symbol.WILD_DRAW_FOUR) && isSameColor(playerCard, topCard);
+        return topCard.getSymbol() == Symbol.DRAW_TWO && (playerCard.getSymbol() == Symbol.DRAW_TWO || playerCard.getSymbol() == Symbol.WILD_DRAW_FOUR) ;
     }
     private boolean isDrawFourCard(Card playerCard, Card topCard){
-        return topCard.getSymbol() == Symbol.WILD_DRAW_FOUR && (playerCard.getSymbol() == Symbol.WILD_DRAW_FOUR || playerCard.getSymbol() == Symbol.DRAW_TWO) && isSameColor(playerCard, topCard);
+        return topCard.getSymbol() == Symbol.WILD_DRAW_FOUR && (playerCard.getSymbol() == Symbol.WILD_DRAW_FOUR || (playerCard.getSymbol() == Symbol.DRAW_TWO && playerCard.getColor() == topCard.getColor()));
     }
 
     @Override
