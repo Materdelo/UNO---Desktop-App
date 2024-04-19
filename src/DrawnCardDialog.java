@@ -23,9 +23,9 @@ public class DrawnCardDialog extends JDialog {
         JPanel cardPanel = new JPanel(){
             @Override
             protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                card.getRectangle().setBounds(getWidth() / 2 - 50, getHeight() / 2 - 65, 100, 130);
-                card.draw((Graphics2D) g, card);
+            super.paintComponent(g);
+            card.getRectangle().setBounds(getWidth() / 2 - 50, getHeight() / 2 - 65, 100, 130);
+            card.draw((Graphics2D) g, card);
             }
         };
         panel.add(cardPanel, BorderLayout.CENTER);

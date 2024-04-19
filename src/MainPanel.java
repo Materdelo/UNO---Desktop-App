@@ -3,17 +3,19 @@ import Enums.Symbol;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 
 public class MainPanel extends JPanel {
     private final int CARD_WIDTH = 70;
     private final int CARD_HEIGHT = 100;
-    private final int numberOfPlayers = 4;
-    private double rotationAngle = (double) 360 / numberOfPlayers;
+    private final int numberOfPlayers;
+    private double rotationAngle;
     private int semiCircleRotationAngle = 0;
     private ArrayList<RotatedRectangle> mainStack = new ArrayList<>();
     private ArrayList<RotatedRectangle> deckStack = new ArrayList<>();
@@ -25,9 +27,15 @@ public class MainPanel extends JPanel {
     private boolean reverse = false;
     private boolean mustPlaySkip = false;
     private boolean mustPlayPlus = false;
+    private boolean coverCards = false;
     private int cardToDraw = 0;
     private int skipCounter = 1;
-    public MainPanel() {
+    public MainPanel(int numberOfPlayers, DefaultTableModel model){
+        for (int i = 0; i < model.getRowCount(); i++){
+            players.add(new Player((String) model.getValueAt(i, 0), new ArrayList<>()));
+        }
+        this.numberOfPlayers = numberOfPlayers;
+        rotationAngle = (double) 360 / numberOfPlayers;
         Deck deck = new Deck();
         try {
             image = ImageIO.read(getClass().getResource("Images/uno.png"));
@@ -38,17 +46,16 @@ public class MainPanel extends JPanel {
         for (int i = 0; i < numberOfPlayers; i++) {
             skipTurns.add(0);
             ArrayList<Card> cards = new ArrayList<>();
-            for (int j = 0; j < 16; j++) {
+            for (int j = 0; j < 18; j++) {
                 cards.add(deck.drawCard());
             }
-            players.add(new Player(STR."Player \{i + 1}", cards));
+            players.get(i).setCards(cards);
         }
         for (Card card: deck.getDeck()){
             RotatedRectangle rotatedRectangle = new RotatedRectangle(new Rectangle(getWidth() / 2 - CARD_WIDTH / 2 + 130, getHeight() / 2 - CARD_HEIGHT / 2, CARD_WIDTH, CARD_HEIGHT), card);
             deckStack.add(rotatedRectangle);
         }
-        mainStack.add(new RotatedRectangle(new Rectangle(0, 0, CARD_WIDTH + 30, CARD_HEIGHT + 30), deck.drawCard()));
-
+        mainStack.add(new RotatedRectangle(new Rectangle(0, 0, CARD_WIDTH + 30, CARD_HEIGHT + 30), deckStack.removeLast().getCard()));
         addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent evt) {
@@ -59,25 +66,32 @@ public class MainPanel extends JPanel {
                         Card playerCard = card.getCard();
                         if (canPlayCard(playerCard, topCard)) {
                             if (playerCard.getSymbol() == Symbol.SKIP && !mustPlayPlus && !animating) {
-                                skipPlayedCard(card, i);
+                                players.get(currentPlayer).getCards().remove(i);
+                                skipPlayedCard(card);
                                 break;
                             } else if (playerCard.getSymbol() == Symbol.DRAW_TWO && !mustPlaySkip) {
                                 cardToDraw += 2;
                                 mustPlayPlus = true;
-                                playedCard(card, i);
+                                players.get(currentPlayer).getCards().remove(i);
+                                mainStack.add(card);
+                                playedCard();
                                 break;
                             } else if (playerCard.getSymbol() == Symbol.WILD_DRAW_FOUR && !mustPlaySkip) {
                                 playedBlackCard(playerCard, i);
                                 mustPlayPlus = true;
                                 cardToDraw += 4;
-                                playedCard(card, i);
+                                players.get(currentPlayer).getCards().remove(i);
+                                mainStack.add(card);
+                                playedCard();
                                 break;
                             } else if (!mustPlaySkip && !mustPlayPlus) {
                                 playedBlackCard(playerCard, i);
                                 if (playerCard.getSymbol() == Symbol.REVERSE) {
                                     reverse = !reverse;
                                 }
-                                playedCard(card, i);
+                                players.get(currentPlayer).getCards().remove(i);
+                                mainStack.add(card);
+                                playedCard();
                                 mustPlaySkip = false;
                                 mustPlayPlus = false;
                                 break;
@@ -96,7 +110,8 @@ public class MainPanel extends JPanel {
                             if (drawCardDialog.isPlay()) {
                                 card.getRectangle().setBounds(new Rectangle(0, 0, CARD_WIDTH + 30, CARD_HEIGHT + 30));
                                 if (card.getCard().getSymbol() == Symbol.SKIP && !animating) {
-                                    skipPlayedCard(card, i);
+                                    players.get(currentPlayer).getCards().remove(i);
+                                    skipPlayedCard(card);
                                     break;
                                 } else if (card.getCard().getSymbol() == Symbol.DRAW_TWO) {
                                     if (mustPlayPlus) {
@@ -105,7 +120,8 @@ public class MainPanel extends JPanel {
                                         cardToDraw += 2;
                                         mustPlayPlus = true;
                                     }
-                                    playedCard(card, i);
+                                    mainStack.add(card);
+                                    playedCard();
                                     break;
                                 } else if (card.getCard().getColor() == CardColors.BLACK) {
                                     ColorDialog colorDialog = new ColorDialog((JFrame) SwingUtilities.getWindowAncestor(MainPanel.this));
@@ -118,14 +134,17 @@ public class MainPanel extends JPanel {
                                             mustPlayPlus = true;
                                         }
                                     }
-                                    playedCard(card, i);
+                                    mainStack.add(card);
+                                    playedCard();
                                     break;
                                 } else if (card.getCard().getSymbol() == Symbol.REVERSE) {
                                     reverse = !reverse;
-                                    playedCard(card, i);
+                                    mainStack.add(card);
+                                    playedCard();
                                     break;
                                 } else {
-                                    playedCard(card, i);
+                                    mainStack.add(card);
+                                    playedCard();
                                     break;
                                 }
                             } else {
@@ -140,32 +159,47 @@ public class MainPanel extends JPanel {
                                 } else {
                                     players.get(currentPlayer).getCards().add(card.getCard());
                                 }
-                                animation();
-                                changePlayer();
-                                skipTurns();
+                                playedCard();
                                 mustPlaySkip = false;
                             }
                         }
                     }
                 }
-                if (isEndGame()) {
-                    System.out.println("End game");
-                    System.exit(0);
+                if(deckStack.isEmpty()){
+                    while (mainStack.size() > 1){
+                        RotatedRectangle card = mainStack.removeFirst();
+                        card.getCard().resetColor();
+                        deckStack.add(card);
+                    }
+                    Collections.shuffle(deckStack);
                 }
             }
         });
     }
 
-    private void playedCard(RotatedRectangle card, int i){
-        mainStack.add(card);
-        players.get(currentPlayer).getCards().remove(i);
-        changePlayer();
-        animation();
-        skipTurns();
+    private void playedCard(){
+        coverCards = true;
+        repaint();
+        if (isEndGame()) {
+            JOptionPane.showMessageDialog(MainPanel.this, STR."Congratulations \{players.get(currentPlayer).getName()}! You won the game", "End Game", JOptionPane.INFORMATION_MESSAGE);
+            SwingUtilities.getWindowAncestor(MainPanel.this).dispose();
+            SwingUtilities.invokeLater(App::new);
+        } else {
+            int nextPlayerIndex = reverse ? (currentPlayer - 1 + numberOfPlayers) % numberOfPlayers : (currentPlayer + 1) % numberOfPlayers;
+            while (skipTurns.get(nextPlayerIndex) > 0) {
+                nextPlayerIndex = reverse ? (nextPlayerIndex - 1 + numberOfPlayers) % numberOfPlayers : (nextPlayerIndex + 1) % numberOfPlayers;
+            }
+            JOptionPane.showMessageDialog(this, STR."\{players.get(nextPlayerIndex).getName()} turn", "Info", JOptionPane.INFORMATION_MESSAGE);
+            coverCards = false;
+            changePlayer();
+            animation();
+            skipTurns();
+        }
     }
 
-    private void skipPlayedCard(RotatedRectangle card, int i){
-        playedCard(card, i);
+    private void skipPlayedCard(RotatedRectangle card){
+        mainStack.add(card);
+        playedCard();
         mustPlaySkip = true;
         SkipDialog skipDialog = new SkipDialog((JFrame) SwingUtilities.getWindowAncestor(MainPanel.this), players, currentPlayer, new CountDownLatch(1), skipCounter);
         if (skipDialog.isSkip()){
@@ -173,18 +207,22 @@ public class MainPanel extends JPanel {
             addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseClicked(MouseEvent evt) {
-                    for (int i = players.get(currentPlayer).getPlayerCards().size() - 1; i >= 0; i--) {
-                        RotatedRectangle card = players.get(currentPlayer).getPlayerCards().get(i);
-                        if (card.getRectangle().contains(evt.getPoint()) && !animating) {
-                            Card playerCard = card.getCard();
-                            if (playerCard.getSymbol() == Symbol.SKIP) {
-                                break;
-                            }
+                for (int i = players.get(currentPlayer).getPlayerCards().size() - 1; i >= 0; i--) {
+                    RotatedRectangle card = players.get(currentPlayer).getPlayerCards().get(i);
+                    if (card.getRectangle().contains(evt.getPoint()) && !animating) {
+                        Card playerCard = card.getCard();
+                        if (playerCard.getSymbol() == Symbol.SKIP) {
+                            break;
                         }
                     }
                 }
+                }
             });
         } else {
+            coverCards = true;
+            repaint();
+            JOptionPane.showMessageDialog(this, STR."\{players.get(reverse ? (currentPlayer - 1 + numberOfPlayers) % numberOfPlayers : (currentPlayer + 1) % numberOfPlayers).getName()} turn", "Info", JOptionPane.INFORMATION_MESSAGE);
+            coverCards = false;
             skipTurns.set(currentPlayer, skipTurns.get(currentPlayer) + skipCounter);
             skipCounter = 1;
             mustPlayPlus = false;
@@ -321,7 +359,7 @@ public class MainPanel extends JPanel {
                 int x = (int) (semiCircleCenterX + semiCircleRadiusWidth * Math.cos(cardAngle) - CARD_WIDTH / 2);
                 int y = (int) (semiCircleCenterY + semiCircleRadiusHeight * Math.sin(cardAngle) - CARD_HEIGHT / 2);
 
-                if(i != currentPlayer){
+                if(i != currentPlayer || coverCards){
                     graphics2D.drawImage(image, x, y, CARD_WIDTH, CARD_HEIGHT, null);
                 } else {
                     Rectangle card = new Rectangle(x, y, CARD_WIDTH + 30, CARD_HEIGHT + 30);
