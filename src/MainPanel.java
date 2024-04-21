@@ -30,149 +30,148 @@ public class MainPanel extends JPanel {
     private boolean coverCards = false;
     private int cardToDraw = 0;
     private int skipCounter = 1;
-    public MainPanel(int numberOfPlayers, DefaultTableModel model){
-        for (int i = 0; i < model.getRowCount(); i++){
-            players.add(new Player((String) model.getValueAt(i, 0), new ArrayList<>()));
-        }
-        this.numberOfPlayers = numberOfPlayers;
+    public MainPanel(DefaultTableModel model){
+        this.numberOfPlayers = model.getRowCount();
         rotationAngle = (double) 360 / numberOfPlayers;
         Deck deck = new Deck();
+        for (int i = 0; i < numberOfPlayers; i++) {
+            players.add(new Player((String) model.getValueAt(i, 0), new ArrayList<>()));
+            skipTurns.add(0);
+        }
         try {
             image = ImageIO.read(getClass().getResource("Images/uno.png"));
             bgcImage = ImageIO.read(getClass().getResource("Images/background.jpg"));
         } catch (Exception e) {
             e.printStackTrace();
         }
-        for (int i = 0; i < numberOfPlayers; i++) {
-            skipTurns.add(0);
-            ArrayList<Card> cards = new ArrayList<>();
-            for (int j = 0; j < 18; j++) {
-                cards.add(deck.drawCard());
+        for (int i = 0; i < 7; i++) {
+            for (int j = 0; j < numberOfPlayers; j++) {
+                players.get(j).getCards().add(deck.drawCard());
             }
-            players.get(i).setCards(cards);
         }
         for (Card card: deck.getDeck()){
-            RotatedRectangle rotatedRectangle = new RotatedRectangle(new Rectangle(getWidth() / 2 - CARD_WIDTH / 2 + 130, getHeight() / 2 - CARD_HEIGHT / 2, CARD_WIDTH, CARD_HEIGHT), card);
-            deckStack.add(rotatedRectangle);
+            deckStack.add(new RotatedRectangle(new Rectangle(getWidth() / 2 - CARD_WIDTH / 2 + 130, getHeight() / 2 - CARD_HEIGHT / 2, CARD_WIDTH, CARD_HEIGHT), card));
         }
-        mainStack.add(new RotatedRectangle(new Rectangle(0, 0, CARD_WIDTH + 30, CARD_HEIGHT + 30), deckStack.removeLast().getCard()));
+        do{
+            mainStack.add(new RotatedRectangle(new Rectangle(0, 0, CARD_WIDTH + 30, CARD_HEIGHT + 30), deckStack.removeLast().getCard()));
+        } while (mainStack.getLast().getCard().getColor() == CardColors.BLACK || mainStack.getLast().getCard().getSymbol() == Symbol.DRAW_TWO || mainStack.getLast().getCard().getSymbol() == Symbol.SKIP || mainStack.getLast().getCard().getSymbol() == Symbol.REVERSE);
         addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent evt) {
-                for (int i = players.get(currentPlayer).getPlayerCards().size() - 1; i >= 0; i--) {
-                    RotatedRectangle card = players.get(currentPlayer).getPlayerCards().get(i);
-                    if (card.getRectangle().contains(evt.getPoint()) && !animating) {
-                        Card topCard = mainStack.getLast().getCard();
-                        Card playerCard = card.getCard();
-                        if (canPlayCard(playerCard, topCard)) {
-                            if (playerCard.getSymbol() == Symbol.SKIP && !mustPlayPlus && !animating) {
+            for (int i = players.get(currentPlayer).getPlayerCards().size() - 1; i >= 0; i--) {
+                RotatedRectangle card = players.get(currentPlayer).getPlayerCards().get(i);
+                if (card.getRectangle().contains(evt.getPoint()) && !animating) {
+                    Card topCard = mainStack.getLast().getCard();
+                    Card playerCard = card.getCard();
+                    if (canPlayCard(playerCard, topCard)) {
+                        if (playerCard.getSymbol() == Symbol.SKIP && !mustPlayPlus && !animating) {
+                            players.get(currentPlayer).getCards().remove(i);
+                            skipPlayedCard(card);
+                            break;
+                        } else if (playerCard.getSymbol() == Symbol.DRAW_TWO && !mustPlaySkip) {
+                            cardToDraw += 2;
+                            mustPlayPlus = true;
+                            players.get(currentPlayer).getCards().remove(i);
+                            mainStack.add(card);
+                            playedCard();
+                            break;
+                        } else if (playerCard.getSymbol() == Symbol.WILD_DRAW_FOUR && !mustPlaySkip) {
+                            playedBlackCard(playerCard, i);
+                            mustPlayPlus = true;
+                            cardToDraw += 4;
+                            players.get(currentPlayer).getCards().remove(i);
+                            mainStack.add(card);
+                            playedCard();
+                            break;
+                        } else if (!mustPlaySkip && !mustPlayPlus) {
+                            playedBlackCard(playerCard, i);
+                            if (playerCard.getSymbol() == Symbol.REVERSE) {
+                                reverse = !reverse;
+                            }
+                            players.get(currentPlayer).getCards().remove(i);
+                            mainStack.add(card);
+                            playedCard();
+                            mustPlaySkip = false;
+                            mustPlayPlus = false;
+                            break;
+                        }
+                    }
+                }
+                repaint();
+            }
+            if (!mustPlaySkip) {
+                for (int i = 0; i < deckStack.size(); i++) {
+                    RotatedRectangle card = deckStack.get(i);
+                    card.getRectangle().setLocation(getWidth() / 2 - CARD_WIDTH / 2 + 130, getHeight() / 2 - CARD_HEIGHT / 2);
+                    if (card.getRectangle().contains(evt.getPoint()) && !animating && !mustPlaySkip) {
+                        deckStack.remove(i);
+                        DrawnCardDialog drawCardDialog = new DrawnCardDialog((JFrame) SwingUtilities.getWindowAncestor(MainPanel.this), card, mainStack.getLast(), mustPlayPlus);
+                        if (drawCardDialog.isPlay()) {
+                            card.getRectangle().setBounds(new Rectangle(0, 0, CARD_WIDTH + 30, CARD_HEIGHT + 30));
+                            if (card.getCard().getSymbol() == Symbol.SKIP && !animating) {
                                 players.get(currentPlayer).getCards().remove(i);
                                 skipPlayedCard(card);
                                 break;
-                            } else if (playerCard.getSymbol() == Symbol.DRAW_TWO && !mustPlaySkip) {
-                                cardToDraw += 2;
-                                mustPlayPlus = true;
-                                players.get(currentPlayer).getCards().remove(i);
-                                mainStack.add(card);
-                                playedCard();
-                                break;
-                            } else if (playerCard.getSymbol() == Symbol.WILD_DRAW_FOUR && !mustPlaySkip) {
-                                playedBlackCard(playerCard, i);
-                                mustPlayPlus = true;
-                                cardToDraw += 4;
-                                players.get(currentPlayer).getCards().remove(i);
-                                mainStack.add(card);
-                                playedCard();
-                                break;
-                            } else if (!mustPlaySkip && !mustPlayPlus) {
-                                playedBlackCard(playerCard, i);
-                                if (playerCard.getSymbol() == Symbol.REVERSE) {
-                                    reverse = !reverse;
+                            } else if (card.getCard().getSymbol() == Symbol.DRAW_TWO) {
+                                if (mustPlayPlus) {
+                                    cardToDraw += 1;
+                                } else {
+                                    cardToDraw += 2;
+                                    mustPlayPlus = true;
                                 }
-                                players.get(currentPlayer).getCards().remove(i);
                                 mainStack.add(card);
                                 playedCard();
-                                mustPlaySkip = false;
-                                mustPlayPlus = false;
                                 break;
-                            }
-                        }
-                    }
-                    repaint();
-                }
-                if (!mustPlaySkip) {
-                    for (int i = 0; i < deckStack.size(); i++) {
-                        RotatedRectangle card = deckStack.get(i);
-                        card.getRectangle().setLocation(getWidth() / 2 - CARD_WIDTH / 2 + 130, getHeight() / 2 - CARD_HEIGHT / 2);
-                        if (card.getRectangle().contains(evt.getPoint()) && !animating && !mustPlaySkip) {
-                            deckStack.remove(i);
-                            DrawnCardDialog drawCardDialog = new DrawnCardDialog((JFrame) SwingUtilities.getWindowAncestor(MainPanel.this), card, mainStack.getLast(), mustPlayPlus);
-                            if (drawCardDialog.isPlay()) {
-                                card.getRectangle().setBounds(new Rectangle(0, 0, CARD_WIDTH + 30, CARD_HEIGHT + 30));
-                                if (card.getCard().getSymbol() == Symbol.SKIP && !animating) {
-                                    players.get(currentPlayer).getCards().remove(i);
-                                    skipPlayedCard(card);
-                                    break;
-                                } else if (card.getCard().getSymbol() == Symbol.DRAW_TWO) {
+                            } else if (card.getCard().getColor() == CardColors.BLACK) {
+                                ColorDialog colorDialog = new ColorDialog((JFrame) SwingUtilities.getWindowAncestor(MainPanel.this));
+                                card.getCard().setColor(colorDialog.getColor());
+                                if (card.getCard().getSymbol() == Symbol.WILD_DRAW_FOUR) {
                                     if (mustPlayPlus) {
-                                        cardToDraw += 1;
+                                        cardToDraw += 3;
                                     } else {
-                                        cardToDraw += 2;
+                                        cardToDraw += 4;
                                         mustPlayPlus = true;
                                     }
-                                    mainStack.add(card);
-                                    playedCard();
-                                    break;
-                                } else if (card.getCard().getColor() == CardColors.BLACK) {
-                                    ColorDialog colorDialog = new ColorDialog((JFrame) SwingUtilities.getWindowAncestor(MainPanel.this));
-                                    card.getCard().setColor(colorDialog.getColor());
-                                    if (card.getCard().getSymbol() == Symbol.WILD_DRAW_FOUR) {
-                                        if (mustPlayPlus) {
-                                            cardToDraw += 3;
-                                        } else {
-                                            cardToDraw += 4;
-                                            mustPlayPlus = true;
-                                        }
-                                    }
-                                    mainStack.add(card);
-                                    playedCard();
-                                    break;
-                                } else if (card.getCard().getSymbol() == Symbol.REVERSE) {
-                                    reverse = !reverse;
-                                    mainStack.add(card);
-                                    playedCard();
-                                    break;
-                                } else {
-                                    mainStack.add(card);
-                                    playedCard();
-                                    break;
                                 }
-                            } else {
-                                if (mustPlayPlus) {
-                                    players.get(currentPlayer).getCards().add(card.getCard());
-                                    for (int j = 0; j < cardToDraw - 1; j++) {
-                                        players.get(currentPlayer).getCards().add(deckStack.getFirst().getCard());
-                                        deckStack.removeFirst();
-                                    }
-                                    cardToDraw = 0;
-                                    mustPlayPlus = false;
-                                } else {
-                                    players.get(currentPlayer).getCards().add(card.getCard());
-                                }
+                                mainStack.add(card);
                                 playedCard();
-                                mustPlaySkip = false;
+                                break;
+                            } else if (card.getCard().getSymbol() == Symbol.REVERSE) {
+                                reverse = !reverse;
+                                mainStack.add(card);
+                                playedCard();
+                                break;
+                            } else {
+                                mainStack.add(card);
+                                playedCard();
+                                break;
                             }
+                        } else {
+                            if (mustPlayPlus) {
+                                players.get(currentPlayer).getCards().add(card.getCard());
+                                for (int j = 0; j < cardToDraw - 1; j++) {
+                                    players.get(currentPlayer).getCards().add(deckStack.getFirst().getCard());
+                                    deckStack.removeFirst();
+                                }
+                                cardToDraw = 0;
+                                mustPlayPlus = false;
+                            } else {
+                                players.get(currentPlayer).getCards().add(card.getCard());
+                            }
+                            playedCard();
+                            mustPlaySkip = false;
                         }
                     }
                 }
-                if(deckStack.isEmpty()){
-                    while (mainStack.size() > 1){
-                        RotatedRectangle card = mainStack.removeFirst();
-                        card.getCard().resetColor();
-                        deckStack.add(card);
-                    }
-                    Collections.shuffle(deckStack);
+            }
+            if(deckStack.isEmpty()){
+                while (mainStack.size() > 1){
+                    RotatedRectangle card = mainStack.removeFirst();
+                    card.getCard().resetColor();
+                    deckStack.add(card);
                 }
+                Collections.shuffle(deckStack);
+            }
             }
         });
     }
@@ -180,11 +179,15 @@ public class MainPanel extends JPanel {
     private void playedCard(){
         coverCards = true;
         repaint();
-        if (isEndGame()) {
+
+        if (players.get(currentPlayer).getCards().isEmpty()) {
             JOptionPane.showMessageDialog(MainPanel.this, STR."Congratulations \{players.get(currentPlayer).getName()}! You won the game", "End Game", JOptionPane.INFORMATION_MESSAGE);
             SwingUtilities.getWindowAncestor(MainPanel.this).dispose();
             SwingUtilities.invokeLater(App::new);
         } else {
+            if(players.get(currentPlayer).getCards().size() == 1){
+                JOptionPane.showMessageDialog(this, "You must said UNO", "Info", JOptionPane.INFORMATION_MESSAGE);
+            }
             int nextPlayerIndex = reverse ? (currentPlayer - 1 + numberOfPlayers) % numberOfPlayers : (currentPlayer + 1) % numberOfPlayers;
             while (skipTurns.get(nextPlayerIndex) > 0) {
                 nextPlayerIndex = reverse ? (nextPlayerIndex - 1 + numberOfPlayers) % numberOfPlayers : (nextPlayerIndex + 1) % numberOfPlayers;
@@ -272,15 +275,6 @@ public class MainPanel extends JPanel {
             repaint();
         });
         timer.start();
-    }
-
-    private boolean isEndGame(){
-        for (Player player: players){
-            if (player.getCards().isEmpty()){
-                return true;
-            }
-        }
-        return false;
     }
 
     private boolean canPlayCard(Card playerCard, Card topCard){

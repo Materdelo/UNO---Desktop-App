@@ -7,7 +7,7 @@ public class App extends JFrame{
         setLayout(new BorderLayout());
         JPanel panel = new JPanel();
         panel.setLayout(new GridLayout(2, 1));
-        panel.setBorder(new EmptyBorder(10, 10, 10, 10));
+        panel.setBorder(new EmptyBorder(100, 10, 50, 10));
         JLabel label = new JLabel("UNO");
         label.setFont(new Font("Arial", Font.BOLD, 50));
         label.setHorizontalAlignment(SwingConstants.CENTER);

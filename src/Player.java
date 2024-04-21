@@ -1,10 +1,6 @@
 import java.util.ArrayList;
 
 public class Player {
-    public void setCards(ArrayList<Card> cards) {
-        this.cards = cards;
-    }
-
     private String name;
     private ArrayList<Card> cards;
     private ArrayList<RotatedRectangle> playerCards = new ArrayList<>();

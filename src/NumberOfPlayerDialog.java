@@ -40,9 +40,11 @@ public class NumberOfPlayerDialog extends JDialog {
         startButton.addActionListener(_ -> {
             if (model.getRowCount() < 2) {
                 JOptionPane.showMessageDialog(this, "Minimum 2 players required to start the game");
+            } else if (model.getRowCount() > 10){
+                JOptionPane.showMessageDialog(this, "Maximum 10 players allowed");
             } else {
                 JFrame frame = new JFrame();
-                frame.add(new MainPanel(model.getRowCount(), getModel()), BorderLayout.CENTER);
+                frame.add(new MainPanel(model), BorderLayout.CENTER);
                 frame.setExtendedState(JFrame.MAXIMIZED_BOTH);
                 frame.setVisible(true);
                 frame.setTitle("UNO");
@@ -50,9 +52,5 @@ public class NumberOfPlayerDialog extends JDialog {
             }
         });
         return startButton;
-    }
-
-    public DefaultTableModel getModel() {
-        return model;
     }
 }
